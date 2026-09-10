@@ -1,3 +1,9 @@
+> **Fork.** This is [prayge/agentation](https://github.com/prayge/agentation), a fork of
+> [benjitaylor/agentation](https://github.com/benjitaylor/agentation) — the source package,
+> published on npm as [`agentation`](https://www.npmjs.com/package/agentation) and documented at
+> [agentation.com](https://agentation.com). Upstream is the source of truth; this fork only adds
+> a rebindable feedback shortcut and search in Layout Mode, and tracks upstream for everything else.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/benjitaylor/agentation/main/package/logo-dark.svg">
   <img src="https://raw.githubusercontent.com/benjitaylor/agentation/main/package/logo.svg" alt="Agentation" width="200">
@@ -40,6 +46,8 @@ The toolbar appears in the bottom-right corner. Click to activate, then click an
 - **Multi-select** – Drag to select multiple elements at once
 - **Area selection** – Drag to annotate any region, even empty space
 - **Animation pause** – Freeze all animations (CSS, JS, videos) to capture specific states
+- **Rebindable shortcut** – Cmd/Ctrl+Shift+F by default; record any combination in settings
+- **Component search** – Filter the Layout Mode palette by name
 - **Structured output** – Copy markdown with selectors, positions, and context
 - **Programmatic access** – Callback prop for direct integration with tools
 - **Dark/light mode** – Toggle in settings, persists to localStorage

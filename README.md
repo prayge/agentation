@@ -1,3 +1,9 @@
+> **Fork.** This is [prayge/agentation](https://github.com/prayge/agentation), a fork of
+> [benjitaylor/agentation](https://github.com/benjitaylor/agentation) — the source package,
+> published on npm as [`agentation`](https://www.npmjs.com/package/agentation) and documented at
+> [agentation.com](https://agentation.com). Upstream is the source of truth; this fork only adds
+> a rebindable feedback shortcut and search in Layout Mode, and tracks upstream for everything else.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="package/logo-dark.svg">
   <img src="package/logo.svg" alt="Agentation" width="200">
