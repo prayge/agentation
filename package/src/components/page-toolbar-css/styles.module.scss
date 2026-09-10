@@ -681,6 +681,53 @@
   transition: none !important;
 }
 
+// Collapsed toggle tooltip — the pill itself is the hover target, so it can't
+// borrow .buttonWrapper's hover rule. Offsets are measured from the 24px icon
+// box, not the 44px pill around it. The tooltip hangs off the pill's edge
+// rather than centring on it: the toolbar's home is the bottom-right corner,
+// where a centred tooltip would run off the viewport.
+.toggleTooltip {
+  bottom: calc(100% + 24px);
+  left: auto;
+  right: -10px;
+  transform: scale(0.95);
+  transform-origin: bottom right;
+
+  &::after {
+    left: auto;
+    right: 18px;
+    transform: rotate(45deg);
+  }
+}
+
+// Dragged near the left edge, it hangs the other way.
+.toggleTooltipAlignLeft .toggleTooltip {
+  right: auto;
+  left: -10px;
+  transform-origin: bottom left;
+
+  &::after {
+    right: auto;
+    left: 18px;
+  }
+}
+
+.tooltipBelow .toggleTooltip {
+  top: calc(100% + 24px);
+  transform-origin: top right;
+}
+
+.tooltipBelow.toggleTooltipAlignLeft .toggleTooltip {
+  transform-origin: top left;
+}
+
+.collapsed:hover .toggleTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  transition-delay: 0.5s;
+}
+
 .tooltipVisible,
 .tooltipsHidden .tooltipVisible {
   opacity: 1 !important;

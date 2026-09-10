@@ -1,10 +1,78 @@
+import { useEffect, useState } from "react";
+
 import { COLOR_OPTIONS, ToolbarSettings } from "..";
 import { OUTPUT_DETAIL_OPTIONS } from "../../../utils/generate-output";
+import {
+  formatEventModifiers,
+  formatKeybind,
+  keybindFromEvent,
+} from "../../../utils/keybind";
 import { HelpTooltip } from "../../help-tooltip";
 import { IconChevronLeft, IconMoon, IconSun } from "../../icons";
 import { Switch } from "../../switch";
 import { CheckboxField } from "./checkbox-field";
 import styles from "./styles.module.scss";
+
+/**
+ * Click to record, then press the combination to bind — modifiers included, so
+ * Ctrl+Shift+F binds as one shortcut rather than as "F". Held modifiers show
+ * as you press them and the bind commits on the first non-modifier key.
+ * Listens in the capture phase so the keys being bound never reach the
+ * toolbar's own shortcut handler.
+ */
+function KeybindField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (bind: string) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [held, setHeld] = useState("");
+
+  useEffect(() => {
+    if (!recording) {
+      setHeld("");
+      return;
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Escape on its own cancels; with a modifier it is a bind like any other.
+      if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        setRecording(false);
+        return;
+      }
+      const bind = keybindFromEvent(e);
+      if (!bind) {
+        // Modifier on its own — show it and wait for the key it modifies.
+        setHeld(formatEventModifiers(e));
+        return;
+      }
+      onChange(bind);
+      setRecording(false);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => setHeld(formatEventModifiers(e));
+    window.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("keyup", handleKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keyup", handleKeyUp, true);
+    };
+  }, [recording, onChange]);
+
+  return (
+    <button
+      type="button"
+      className={`${styles.keybindButton} ${recording ? styles.keybindRecording : ""}`}
+      onClick={() => setRecording((prev) => !prev)}
+    >
+      <span key={recording ? "recording" : value} className={styles.cycleButtonText}>
+        {recording ? (held ? `${held}\u2026` : "Press keys") : formatKeybind(value)}
+      </span>
+    </button>
+  );
+}
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
@@ -148,6 +216,19 @@ export function SettingsPanel({
                   onSettingsChange({ reactEnabled: e.target.checked })
                 }
                 disabled={!isDevMode}
+              />
+            </div>
+
+            <div
+              className={`${styles.settingsRow} ${styles.settingsRowMarginTop}`}
+            >
+              <div className={styles.settingsLabel}>
+                Feedback Shortcut
+                <HelpTooltip content="Shortcut that starts and stops feedback mode. Click, then press the keys you want — modifiers included. Escape cancels." />
+              </div>
+              <KeybindField
+                value={settings.activationKey}
+                onChange={(key) => onSettingsChange({ activationKey: key })}
               />
             </div>
 

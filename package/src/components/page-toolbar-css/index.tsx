@@ -71,6 +71,11 @@ import {
 } from "../../utils/sync";
 import { getReactComponentName } from "../../utils/react-detection";
 import {
+  DEFAULT_ACTIVATION_KEY,
+  formatKeybind,
+  matchesKeybind,
+} from "../../utils/keybind";
+import {
   getSourceLocation,
   findNearestComponentSource,
   formatSourceLocation,
@@ -153,6 +158,8 @@ export type ToolbarSettings = {
   markerClickBehavior: MarkerClickBehavior;
   webhookUrl: string;
   webhooksEnabled: boolean;
+  /** Single key that toggles feedback mode. Empty string disables it. */
+  activationKey: string;
 };
 
 const DEFAULT_SETTINGS: ToolbarSettings = {
@@ -164,6 +171,7 @@ const DEFAULT_SETTINGS: ToolbarSettings = {
   markerClickBehavior: "edit",
   webhookUrl: "",
   webhooksEnabled: true,
+  activationKey: DEFAULT_ACTIVATION_KEY,
 };
 
 // Simple URL validation - checks for valid http(s) URL format
@@ -3400,8 +3408,8 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
         }
       }
 
-      // Cmd+Shift+F / Ctrl+Shift+F to toggle feedback mode
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === "f" || e.key === "F")) {
+      // Configurable shortcut to toggle feedback mode (default: Cmd/Ctrl+Shift+F)
+      if (matchesKeybind(e, settings.activationKey, isTyping)) {
         e.preventDefault();
         hideTooltipsUntilMouseLeave();
         if (isActive) {
@@ -3493,6 +3501,7 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     pendingAnnotation,
     annotations.length,
     settings.webhookUrl,
+    settings.activationKey,
     webhookUrl,
     sendState,
     sendToWebhook,
@@ -3599,13 +3608,29 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
           onMouseDown={handleToolbarMouseDown}
           role={!isActive ? "button" : undefined}
           tabIndex={!isActive ? 0 : -1}
-          title={!isActive ? "Start feedback mode" : undefined}
+          aria-label={!isActive ? "Start feedback mode" : undefined}
         >
           {/* Toggle content - visible when collapsed */}
           <div
-            className={`${styles.toggleContent} ${!isActive ? styles.visible : styles.hidden}`}
+            className={`${styles.toggleContent} ${!isActive ? styles.visible : styles.hidden} ${
+              toolbarPosition && toolbarPosition.y < 100
+                ? styles.tooltipBelow
+                : ""
+            } ${
+              toolbarPosition && toolbarPosition.x < 220
+                ? styles.toggleTooltipAlignLeft
+                : ""
+            } ${tooltipsHidden ? styles.tooltipsHidden : ""}`}
           >
             <IconListSparkle size={24} />
+            <span className={`${styles.buttonTooltip} ${styles.toggleTooltip}`}>
+              Start feedback mode
+              {settings.activationKey && (
+                <span className={styles.shortcut}>
+                  {formatKeybind(settings.activationKey)}
+                </span>
+              )}
+            </span>
             {hasVisibleAnnotations && (
               <span
                 className={`${styles.badge} ${isActive ? styles.fadeOut : ""} ${showEntranceAnimation ? styles.entrance : ""}`}
