@@ -64,3 +64,20 @@ When instructed to publish a new npm version:
 7. Commit and push the changelog update
 
 Always analyze what changed since the last version to write accurate changelog entries.
+
+## Fork: shipping to consumers
+
+`main` carries a built `package/dist/` (force-added past `.gitignore`) so this
+fork can be installed straight from git:
+
+```
+"agentation": "github:prayge/agentation#main&path:/package"
+```
+
+There is deliberately no `prepare` script: a git-hosted package that runs build
+scripts needs a pnpm `allowBuilds` entry keyed by commit SHA, which breaks every
+time `main` moves. Shipping `dist` costs a rebuild instead.
+
+After merging anything into `main`: `pnpm --filter agentation build`, then
+`git add -f package/dist` in the same commit. Feature branches leave `dist`
+ignored, so merges never conflict on build output.

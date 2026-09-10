@@ -34,7 +34,6 @@
   ],
   "scripts": {
     "build": "tsup",
-    "prepare": "pnpm build",
     "watch": "tsup --watch",
     "dev": "pnpm build && pnpm watch",
     "test": "vitest run",
