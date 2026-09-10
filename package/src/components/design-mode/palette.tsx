@@ -643,12 +643,29 @@ type ComponentGridProps = {
   scrollRef?: React.Ref<HTMLDivElement>;
   fadeClass?: string;
   blankCanvas?: boolean;
+  /** Substring filter over component labels and types. Empty shows everything. */
+  query?: string;
 };
 
-export function ComponentGrid({ activeType, onSelect, onDragStart, scrollRef, fadeClass, blankCanvas }: ComponentGridProps) {
+export function ComponentGrid({ activeType, onSelect, onDragStart, scrollRef, fadeClass, blankCanvas, query }: ComponentGridProps) {
+  const needle = query?.trim().toLowerCase() ?? "";
+  const sections = needle
+    ? COMPONENT_REGISTRY.map((section) => ({
+        ...section,
+        items: section.items.filter(
+          (item) =>
+            item.label.toLowerCase().includes(needle) ||
+            item.type.toLowerCase().includes(needle),
+        ),
+      })).filter((section) => section.items.length > 0)
+    : COMPONENT_REGISTRY;
+
   return (
     <div ref={scrollRef} className={`${styles.placeScroll} ${fadeClass || ""}`}>
-      {COMPONENT_REGISTRY.map((section) => (
+      {sections.length === 0 && (
+        <div className={styles.paletteEmpty}>No components match &ldquo;{query?.trim()}&rdquo;</div>
+      )}
+      {sections.map((section) => (
         <div key={section.section} className={styles.paletteSection}>
           <div className={styles.paletteSectionTitle}>{section.section}</div>
           {section.items.map((item) => (
@@ -782,6 +799,7 @@ export function DesignPalette({
   const exitTimerRef = useRef<ReturnType<typeof originalSetTimeout>>();
   const placeScrollRef = useRef<HTMLDivElement>(null);
   const [placeFade, setPlaceFade] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (visible) {
@@ -878,6 +896,43 @@ export function DesignPalette({
         </div>
       </div>
 
+      {/* Component search */}
+      <div className={styles.paletteSearch}>
+        <span className={styles.paletteSearchIcon}>
+          <svg viewBox="0 0 14 14" width="14" height="14" fill="none">
+            <circle cx="6.25" cy="6.25" r="4.25" stroke="currentColor" strokeWidth="1.2" />
+            <path d="M9.4 9.4L12 12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+        <input
+          className={styles.paletteSearchInput}
+          type="text"
+          placeholder="Search components"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            // Escape narrows before it closes: clear the search first, and keep
+            // it away from the toolbar's "Escape exits layout mode" handler.
+            if (e.key === "Escape" && query) {
+              e.stopPropagation();
+              setQuery("");
+            }
+          }}
+        />
+        {query && (
+          <button
+            type="button"
+            className={styles.paletteSearchClear}
+            onClick={() => setQuery("")}
+            aria-label="Clear search"
+          >
+            <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+              <path d="M3 3L9 9M9 3L3 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+      </div>
+
       {/* Wireframe toggle */}
       <div
         className={`${styles.canvasToggle} ${blankCanvas ? styles.active : ""}`}
@@ -920,6 +975,7 @@ export function DesignPalette({
         scrollRef={placeScrollRef}
         fadeClass={placeFade}
         blankCanvas={blankCanvas}
+        query={query}
       />
 
       {/* Footer: change count + clear */}
