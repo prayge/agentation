@@ -4,10 +4,13 @@ import { COLOR_OPTIONS, ToolbarSettings } from "..";
 import { OUTPUT_DETAIL_OPTIONS } from "../../../utils/generate-output";
 import {
   formatEventModifiers,
+  formatHoldKey,
   formatKeybind,
+  holdKeyFromEvent,
   keybindFromEvent,
 } from "../../../utils/keybind";
 import { HelpTooltip } from "../../help-tooltip";
+import { Tooltip } from "../../tooltip";
 import { IconChevronLeft, IconMoon, IconSun } from "../../icons";
 import { Switch } from "../../switch";
 import { CheckboxField } from "./checkbox-field";
@@ -69,6 +72,56 @@ function KeybindField({
     >
       <span key={recording ? "recording" : value} className={styles.cycleButtonText}>
         {recording ? (held ? `${held}\u2026` : "Press keys") : formatKeybind(value)}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * Records a single modifier to hold. Unlike KeybindField this wants the bare
+ * modifier and nothing else — the bind commits on keydown, so there is never a
+ * second key to wait for. Escape cancels, Backspace/Delete clears it to off.
+ */
+function HoldKeyField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (key: string) => void;
+}) {
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    if (!recording) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecording(false);
+        return;
+      }
+      if (e.key === "Backspace" || e.key === "Delete") {
+        onChange("");
+        setRecording(false);
+        return;
+      }
+      const key = holdKeyFromEvent(e);
+      if (!key) return; // Non-modifier — keep waiting.
+      onChange(key);
+      setRecording(false);
+    };
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [recording, onChange]);
+
+  return (
+    <button
+      type="button"
+      className={`${styles.keybindButton} ${recording ? styles.keybindRecording : ""}`}
+      onClick={() => setRecording((prev) => !prev)}
+    >
+      <span key={recording ? "recording" : value} className={styles.cycleButtonText}>
+        {recording ? "Hold a modifier" : formatHoldKey(value)}
       </span>
     </button>
   );
@@ -161,40 +214,52 @@ export function SettingsPanel({
             <div className={styles.settingsRow}>
               <div className={styles.settingsLabel}>
                 Output Detail
-                <HelpTooltip content="Controls how much detail is included in the copied output" />
+                <HelpTooltip content="How much the copied output says about each note. Hover the button to read what the current level includes." />
               </div>
-              <button
-                className={styles.cycleButton}
-                onClick={() => {
-                  const currentIndex = OUTPUT_DETAIL_OPTIONS.findIndex(
+              {/* Tooltip carries the current level's description — the label
+                  alone never said what "Forensic" actually adds. */}
+              <Tooltip
+                content={
+                  OUTPUT_DETAIL_OPTIONS.find(
                     (opt) => opt.value === settings.outputDetail,
-                  );
-                  const nextIndex =
-                    (currentIndex + 1) % OUTPUT_DETAIL_OPTIONS.length;
-                  onSettingsChange({
-                    outputDetail: OUTPUT_DETAIL_OPTIONS[nextIndex].value,
-                  });
-                }}
+                  )?.description ?? ""
+                }
+                width={240}
+                className={styles.cycleButtonTooltip}
               >
-                <span
-                  key={settings.outputDetail}
-                  className={styles.cycleButtonText}
-                >
-                  {
-                    OUTPUT_DETAIL_OPTIONS.find(
+                <button
+                  className={styles.cycleButton}
+                  onClick={() => {
+                    const currentIndex = OUTPUT_DETAIL_OPTIONS.findIndex(
                       (opt) => opt.value === settings.outputDetail,
-                    )?.label
-                  }
-                </span>
-                <span className={styles.cycleDots}>
-                  {OUTPUT_DETAIL_OPTIONS.map((option) => (
-                    <span
-                      key={option.value}
-                      className={`${styles.cycleDot} ${settings.outputDetail === option.value ? styles.active : ""}`}
-                    />
-                  ))}
-                </span>
-              </button>
+                    );
+                    const nextIndex =
+                      (currentIndex + 1) % OUTPUT_DETAIL_OPTIONS.length;
+                    onSettingsChange({
+                      outputDetail: OUTPUT_DETAIL_OPTIONS[nextIndex].value,
+                    });
+                  }}
+                >
+                  <span
+                    key={settings.outputDetail}
+                    className={styles.cycleButtonText}
+                  >
+                    {
+                      OUTPUT_DETAIL_OPTIONS.find(
+                        (opt) => opt.value === settings.outputDetail,
+                      )?.label
+                    }
+                  </span>
+                  <span className={styles.cycleDots}>
+                    {OUTPUT_DETAIL_OPTIONS.map((option) => (
+                      <span
+                        key={option.value}
+                        className={`${styles.cycleDot} ${settings.outputDetail === option.value ? styles.active : ""}`}
+                      />
+                    ))}
+                  </span>
+                </button>
+              </Tooltip>
             </div>
 
             <div
@@ -229,6 +294,19 @@ export function SettingsPanel({
               <KeybindField
                 value={settings.activationKey}
                 onChange={(key) => onSettingsChange({ activationKey: key })}
+              />
+            </div>
+
+            <div
+              className={`${styles.settingsRow} ${styles.settingsRowMarginTop}`}
+            >
+              <div className={styles.settingsLabel}>
+                Click Through
+                <HelpTooltip content="Hold this key to suspend feedback mode and use the page normally — click a button, open a menu — without leaving feedback mode. Click, then hold the modifier you want. Backspace turns it off." />
+              </div>
+              <HoldKeyField
+                value={settings.clickThroughKey}
+                onChange={(key) => onSettingsChange({ clickThroughKey: key })}
               />
             </div>
 

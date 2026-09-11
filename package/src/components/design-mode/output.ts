@@ -55,6 +55,35 @@ function formatReferenceFrame(layout: PageLayout): string {
 }
 
 /**
+ * The label and the links a placement carries, nested under it: the navigation
+ * first, then each "Link to", then the component that link lands on. Indent is
+ * passed in so the same block works under a numbered item or a bullet.
+ */
+function formatPlacementLinks(
+  c: DesignPlacement,
+  indent: string,
+  detailLevel: OutputDetailLevel,
+): string {
+  let out = "";
+  if (c.text) out += `${indent}- Label: "${c.text}"\n`;
+  if (!c.links?.length) return out;
+
+  out += `${indent}- Links to ${c.links.length} existing component${c.links.length !== 1 ? "s" : ""}:\n`;
+  c.links.forEach((link, i) => {
+    const t = link.target;
+    const name = link.label ? `"${link.label}" → **${t.elementName}**` : `**${t.elementName}**`;
+    out += `${indent}  ${i + 1}. ${name} — \`${Math.round(t.rect.width)}×${Math.round(t.rect.height)}px\` at \`(${Math.round(t.rect.x)}, ${Math.round(t.rect.y)})\`\n`;
+    out += `${indent}     - DOM: \`${t.path}\`\n`;
+    if (t.reactComponents) out += `${indent}     - React: ${t.reactComponents}\n`;
+    if (t.sourceFile) out += `${indent}     - Source: ${t.sourceFile}\n`;
+    if ((detailLevel === "detailed" || detailLevel === "forensic") && t.cssClasses) {
+      out += `${indent}     - Classes: ${t.cssClasses}\n`;
+    }
+  });
+  return out;
+}
+
+/**
  * Format parent layout context for an element.
  * Returns a line like: "Parent: `flex`, flex-direction: `column`, gap: `24px` (`main > div`)"
  */
@@ -105,6 +134,7 @@ export function generateDesignOutput(
     sorted.forEach((c, i) => {
       const label = COMPONENT_MAP[c.type]?.label || c.type;
       out += `${i + 1}. **${label}** — \`${Math.round(c.width)}×${Math.round(c.height)}px\` at \`(${Math.round(c.x)}, ${Math.round(c.y)})\`\n`;
+      out += formatPlacementLinks(c, "   ", detailLevel);
     });
     return out;
   }
@@ -134,6 +164,9 @@ export function generateDesignOutput(
     if (cssPos) {
       out += `   - CSS: ${cssPos}\n`;
     }
+
+    // Label and linked targets
+    out += formatPlacementLinks(c, "   ", detailLevel);
   });
 
   // --- Layout analysis: group by rows ---
@@ -215,7 +248,14 @@ export function generateDesignOutput(
   const tables = sorted.filter((c) => c.type === "table");
   const modals = sorted.filter((c) => c.type === "modal");
 
-  if (hasNav) out += "- Top navigation bar with logo + nav links + CTA\n";
+  if (hasNav) {
+    out += "- Top navigation bar with logo + nav links + CTA\n";
+    const linked = sorted.filter((c) => c.type === "navigation" && c.links?.length);
+    if (linked.length > 0) {
+      const targets = linked.flatMap((c) => c.links!).map((l) => l.label || l.target.elementName);
+      out += `- Nav items should route to components that already exist: ${targets.join(", ")} — reuse them, don't rebuild\n`;
+    }
+  }
   if (hasHero) out += "- Hero section with heading, subtext, and call-to-action\n";
   if (hasSidebar) out += "- Sidebar layout — use CSS Grid with sidebar + main content area\n";
   if (cards.length > 1) out += `- ${cards.length}-column card grid — use CSS Grid or Flexbox\n`;

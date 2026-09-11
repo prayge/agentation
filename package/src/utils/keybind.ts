@@ -107,6 +107,61 @@ export function formatKeybind(bind: string): string {
   return apple ? parts.join("") : parts.join("+");
 }
 
+// =============================================================================
+// Hold Keys (click-through)
+// =============================================================================
+//
+// A hold key is the opposite shape to an activation bind: one modifier, held,
+// suspending feedback mode for as long as it is down. Stored as the raw
+// KeyboardEvent.key ("Alt", "Shift", "Control", "Meta"), empty string for off.
+//
+
+export const DEFAULT_CLICK_THROUGH_KEY = "Alt";
+
+/** Modifiers that can be held to suspend feedback mode. */
+export const HOLD_KEYS = ["Alt", "Shift", "Control", "Meta"] as const;
+
+export function isHoldKey(key: string): boolean {
+  return (HOLD_KEYS as readonly string[]).includes(key);
+}
+
+/** The hold key a keydown describes, or null if it is not a bare modifier. */
+export function holdKeyFromEvent(e: KeyboardEvent): string | null {
+  return isHoldKey(e.key) ? e.key : null;
+}
+
+/** Display label: "⌥" on Apple, "Alt" elsewhere. */
+export function formatHoldKey(key: string): string {
+  if (!key) return "Off";
+  if (!isApple()) return key === "Meta" ? "Win" : key;
+  const apple: Record<string, string> = {
+    Alt: "⌥",
+    Shift: "⇧",
+    Control: "⌃",
+    Meta: "⌘",
+  };
+  return apple[key] ?? key;
+}
+
+/** Whether the hold key is currently down, read off any keyboard/mouse event. */
+export function isHoldKeyDown(
+  e: { altKey: boolean; shiftKey: boolean; ctrlKey: boolean; metaKey: boolean },
+  key: string,
+): boolean {
+  switch (key) {
+    case "Alt":
+      return e.altKey;
+    case "Shift":
+      return e.shiftKey;
+    case "Control":
+      return e.ctrlKey;
+    case "Meta":
+      return e.metaKey;
+    default:
+      return false;
+  }
+}
+
 function keyMatches(e: KeyboardEvent, key: string): boolean {
   if (key.length === 1) return keyNameFromEvent(e).toLowerCase() === key.toLowerCase();
   return e.key === key;

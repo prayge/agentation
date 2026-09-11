@@ -879,6 +879,43 @@ export const IconChevronRight = ({ size = 16 }: { size?: number }) => (
   </svg>
 );
 
+export const IconLink = ({ size = 16 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M6.5 9.5L9.5 6.5M6.75 4.25L8 3a2.83 2.83 0 014 4l-1.25 1.25M9.25 11.75L8 13a2.83 2.83 0 01-4-4l1.25-1.25"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const IconTag = ({ size = 16 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M2.5 7.2V3.5a1 1 0 011-1h3.7a1 1 0 01.71.3l5.3 5.3a1 1 0 010 1.4l-3.7 3.7a1 1 0 01-1.4 0L2.8 7.9a1 1 0 01-.3-.7z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="5.4" cy="5.4" r="0.9" fill="currentColor" />
+  </svg>
+);
+
 // Animated Bunny mascot
 export const AnimatedBunny = ({
   size = 20,

@@ -5,10 +5,13 @@ import { originalSetTimeout } from "../../utils/freeze-animations";
 export const Tooltip = ({
   content,
   children,
+  width = 180,
   ...props
 }: {
   content: string;
   children: React.ReactNode;
+  /** Tooltip width in px. Widen it for multi-sentence copy. */
+  width?: number;
 } & React.HTMLAttributes<HTMLSpanElement>) => {
   const [visible, setVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -84,7 +87,7 @@ export const Tooltip = ({
               fontWeight: 400,
               lineHeight: "14px",
               borderRadius: "10px",
-              width: "180px",
+              width: `${width}px`,
               textAlign: "left" as const,
               zIndex: 100020,
               pointerEvents: "none" as const,
