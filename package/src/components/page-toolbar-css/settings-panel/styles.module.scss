@@ -351,6 +351,13 @@
 // Output detail cycle button
 // =============================================================================
 
+// Wrapper span the Tooltip renders around the cycle button — must not change
+// the row's layout.
+.cycleButtonTooltip {
+  display: flex;
+  align-items: center;
+}
+
 .cycleButton {
   display: flex;
   align-items: center;

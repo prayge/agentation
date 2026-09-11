@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { COMPONENT_MAP, DEFAULT_SIZES, type ComponentType, type DesignPlacement } from "./types";
+import { COMPONENT_MAP, DEFAULT_SIZES, LINKABLE_TYPES, type ComponentType, type DesignPlacement } from "./types";
 import { Skeleton } from "./skeletons";
 import { AnnotationPopupCSS } from "../annotation-popup-css";
+import { IconLink, IconTag } from "../icons";
 import styles from "./styles.module.scss";
 import { originalSetTimeout } from "../../utils/freeze-animations";
 
@@ -28,6 +29,10 @@ type DesignModeProps = {
   onDragEnd?: (dx: number, dy: number, committed: boolean) => void;
   clearSignal?: number;
   wireframe?: boolean;
+  /** Start picking a real page element for this placement to link to. */
+  onRequestLink?: (placementId: string) => void;
+  /** Placement currently waiting on a link pick — its box stays lit. */
+  linkingId?: string | null;
 };
 
 type HandleDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -141,6 +146,8 @@ export function DesignMode({
   onDragEnd,
   clearSignal,
   wireframe,
+  onRequestLink,
+  linkingId,
 }: DesignModeProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [drawBox, setDrawBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -678,7 +685,7 @@ export function DesignMode({
     <>
       <div
         ref={overlayRef}
-        className={`${styles.overlay} ${!isDarkMode ? styles.light : ""} ${activeComponent ? styles.placing : ""} ${passthrough ? styles.passthrough : ""} ${exiting ? styles.overlayExiting : ""} ${wireframe ? styles.wireframe : ""}${extraClassName ? ` ${extraClassName}` : ""}`}
+        className={`${styles.overlay} ${!isDarkMode ? styles.light : ""} ${activeComponent ? styles.placing : ""} ${passthrough ? styles.passthrough : ""} ${linkingId ? styles.picking : ""} ${exiting ? styles.overlayExiting : ""} ${wireframe ? styles.wireframe : ""}${extraClassName ? ` ${extraClassName}` : ""}`}
         data-feedback-toolbar
         onMouseDown={handleOverlayMouseDown}
       >
@@ -717,6 +724,62 @@ export function DesignMode({
               >
                 ✕
               </div>
+
+              {/* Label / Link to — navigation points at components that exist */}
+              {LINKABLE_TYPES.has(p.type) && (
+                <div className={styles.placementActions}>
+                  <button
+                    type="button"
+                    className={styles.placementAction}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => handleDoubleClick(p.id)}
+                    title="Set the nav's own label"
+                  >
+                    <IconTag size={11} />
+                    Label
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.placementAction} ${linkingId === p.id ? styles.placementActionActive : ""}`}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => onRequestLink?.(p.id)}
+                    title="Point this nav at a component already on the page"
+                  >
+                    <IconLink size={11} />
+                    {linkingId === p.id ? "Pick…" : "Link to"}
+                  </button>
+                </div>
+              )}
+
+              {/* Linked targets, listed under the placement */}
+              {p.links && p.links.length > 0 && (
+                <div className={styles.placementLinks}>
+                  {p.links.map((link) => (
+                    <span key={link.id} className={styles.placementLink}>
+                      <IconLink size={10} />
+                      {link.label ? `${link.label} → ` : ""}
+                      {link.target.elementName}
+                      <button
+                        type="button"
+                        className={styles.placementLinkRemove}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() =>
+                          onChange(
+                            placements.map((pl) =>
+                              pl.id === p.id
+                                ? { ...pl, links: pl.links?.filter((l) => l.id !== link.id) }
+                                : pl,
+                            ),
+                          )
+                        }
+                        title="Remove link"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Corner resize handles */}
               {cornerHandles.map((dir) => (

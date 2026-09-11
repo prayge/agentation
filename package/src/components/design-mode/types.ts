@@ -70,6 +70,34 @@ export type ComponentType =
   | "login"
   | "contact";
 
+/**
+ * A real element on the page that a placed navigation points at. Captured by
+ * picking the element, so it carries enough identity for an agent to find the
+ * component again — not just a rectangle.
+ */
+export type LinkTarget = {
+  /** Display name, React path included when detection is on. */
+  name: string;
+  /** Element name without the React path. */
+  elementName: string;
+  /** DOM path. */
+  path: string;
+  rect: { x: number; y: number; width: number; height: number };
+  reactComponents?: string;
+  sourceFile?: string;
+  cssClasses?: string;
+};
+
+export type PlacementLink = {
+  id: string;
+  /** Nav item label, e.g. "Pricing". Optional — the target names itself. */
+  label?: string;
+  target: LinkTarget;
+};
+
+/** Types that get the Label / Link to affordances on the placement. */
+export const LINKABLE_TYPES = new Set<ComponentType>(["navigation"]);
+
 export type DesignPlacement = {
   id: string;
   type: ComponentType;
@@ -80,6 +108,8 @@ export type DesignPlacement = {
   scrollY: number;
   timestamp: number;
   text?: string;
+  /** Existing components this placement links to (navigation). */
+  links?: PlacementLink[];
 };
 
 export type ComponentDefinition = {

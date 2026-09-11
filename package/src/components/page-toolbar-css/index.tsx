@@ -28,7 +28,7 @@ import designStyles from "../design-mode/styles.module.scss";
 import { RearrangeOverlay } from "../design-mode/rearrange";
 import { generateDesignOutput, generateRearrangeOutput } from "../design-mode/output";
 import { detectPageSections } from "../design-mode/section-detection";
-import { DEFAULT_SIZES, type DesignPlacement, type ComponentType as DesignComponentType, type RearrangeState } from "../design-mode/types";
+import { DEFAULT_SIZES, type DesignPlacement, type ComponentType as DesignComponentType, type PlacementLink, type RearrangeState } from "../design-mode/types";
 import {
   identifyElement,
   getNearbyText,
@@ -72,7 +72,9 @@ import {
 import { getReactComponentName } from "../../utils/react-detection";
 import {
   DEFAULT_ACTIVATION_KEY,
+  DEFAULT_CLICK_THROUGH_KEY,
   formatKeybind,
+  isHoldKeyDown,
   matchesKeybind,
 } from "../../utils/keybind";
 import {
@@ -91,6 +93,7 @@ import {
 import type { Annotation } from "../../types";
 import styles from "./styles.module.scss";
 import { generateOutput } from "../../utils/generate-output";
+import { withEnvironment } from "../../utils/environment";
 import { AnnotationMarker, ExitingMarker, PendingMarker } from "./annotation-marker";
 import { SettingsPanel } from "./settings-panel";
 
@@ -160,6 +163,8 @@ export type ToolbarSettings = {
   webhooksEnabled: boolean;
   /** Single key that toggles feedback mode. Empty string disables it. */
   activationKey: string;
+  /** Modifier held to suspend feedback mode and click the page. "" disables. */
+  clickThroughKey: string;
 };
 
 const DEFAULT_SETTINGS: ToolbarSettings = {
@@ -172,6 +177,7 @@ const DEFAULT_SETTINGS: ToolbarSettings = {
   webhookUrl: "",
   webhooksEnabled: true,
   activationKey: DEFAULT_ACTIVATION_KEY,
+  clickThroughKey: DEFAULT_CLICK_THROUGH_KEY,
 };
 
 // Simple URL validation - checks for valid http(s) URL format
@@ -455,6 +461,19 @@ export function PageFeedbackToolbarCSS({
   const [canvasPurpose, setCanvasPurpose] = useState<import("../design-mode/types").CanvasPurpose>("new-page");
   const [wireframePurpose, setWireframePurpose] = useState("");
   const [designInteracting, setDesignInteracting] = useState(false);
+  // Link picking: the placement waiting on a target, then the picked target
+  // waiting on a label.
+  const [linkingPlacementId, setLinkingPlacementId] = useState<string | null>(null);
+  const [pendingLink, setPendingLink] = useState<{
+    placementId: string;
+    target: PlacementLink["target"];
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  const [pendingLinkExiting, setPendingLinkExiting] = useState(false);
+  const pickTargetRef = useRef<HTMLElement | null>(null);
+  // Held modifier that suspends feedback mode so the page can be used normally.
+  const [clickThroughHeld, setClickThroughHeld] = useState(false);
   const [rearrangeState, setRearrangeState] = useState<RearrangeState | null>(null);
   const rearrangeLoaded = useRef(false);
   // Stash explore/wireframe state for full isolation between modes
@@ -1625,6 +1644,8 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     setDesignOverlayExiting(true);
     setIsDesignMode(false);
     setActiveDesignComponent(null);
+    setLinkingPlacementId(null);
+    setPendingLink(null);
     // Don't reset subMode here — it causes a crossfade during exit animation.
     // It stays on the last-used tab for next time.
     clearTimeout(designExitTimer.current);
@@ -1639,6 +1660,8 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
       setDesignOverlayExiting(true);
       setIsDesignMode(false);
       setActiveDesignComponent(null);
+      setLinkingPlacementId(null);
+      setPendingLink(null);
       clearTimeout(designExitTimer.current);
       designExitTimer.current = originalSetTimeout(() => {
         setDesignOverlayExiting(false);
@@ -1843,9 +1866,160 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     }
   }, [hoveredDrawingIdx, isActive]);
 
+  // Link picking: layout mode borrows feedback mode's element hover — the same
+  // tooltip and the same highlight — so a placed navigation can point at a
+  // component that already exists rather than describing one in prose.
+  useEffect(() => {
+    if (!linkingPlacementId || pendingLink) return;
+
+    const elementAt = (x: number, y: number): HTMLElement | null => {
+      const el = deepElementFromPoint(x, y);
+      if (!el) return null;
+      if (closestCrossingShadow(el, "[data-feedback-toolbar]")) return null;
+      if (closestCrossingShadow(el, "[data-annotation-popup]")) return null;
+      return el;
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const el = elementAt(e.clientX, e.clientY);
+      pickTargetRef.current = el;
+      if (!el) {
+        setHoverInfo(null);
+        return;
+      }
+      const { name, elementName, path, reactComponents } = identifyElementWithReact(
+        el,
+        effectiveReactMode,
+      );
+      setHoverInfo({ element: name, elementName, elementPath: path, rect: el.getBoundingClientRect(), reactComponents });
+      setHoverPosition({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleClick = (e: MouseEvent) => {
+      // Pick what was highlighted, not what is under the cursor now: by mouseup
+      // the hover overlay itself can sit on the point, and re-querying would
+      // resolve to the toolbar instead of the page.
+      const hovered = pickTargetRef.current;
+      const el = hovered && document.contains(hovered) ? hovered : elementAt(e.clientX, e.clientY);
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const { name, elementName, path, reactComponents } = identifyElementWithReact(
+        el,
+        effectiveReactMode,
+      );
+      const rect = el.getBoundingClientRect();
+
+      setPendingLink({
+        placementId: linkingPlacementId,
+        target: {
+          name,
+          elementName,
+          path,
+          rect: {
+            x: rect.left,
+            y: rect.top + window.scrollY,
+            width: rect.width,
+            height: rect.height,
+          },
+          reactComponents: reactComponents ?? undefined,
+          sourceFile: detectSourceFile(el),
+          cssClasses: getElementClasses(el),
+        },
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
+      setHoverInfo(null);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setLinkingPlacementId(null);
+      setHoverInfo(null);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("click", handleClick, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("click", handleClick, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      pickTargetRef.current = null;
+    };
+  }, [linkingPlacementId, pendingLink, effectiveReactMode]);
+
+  // Commit a picked target, with the label typed for it
+  const commitLink = useCallback(
+    (label: string) => {
+      if (!pendingLink) return;
+      const link: PlacementLink = {
+        id: `lnk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        label: label.trim() || undefined,
+        target: pendingLink.target,
+      };
+      setDesignPlacements((prev) =>
+        prev.map((p) =>
+          p.id === pendingLink.placementId ? { ...p, links: [...(p.links ?? []), link] } : p,
+        ),
+      );
+      setPendingLinkExiting(true);
+      originalSetTimeout(() => {
+        setPendingLink(null);
+        setPendingLinkExiting(false);
+        setLinkingPlacementId(null);
+      }, 150);
+    },
+    [pendingLink],
+  );
+
+  const cancelLink = useCallback(() => {
+    setPendingLinkExiting(true);
+    originalSetTimeout(() => {
+      setPendingLink(null);
+      setPendingLinkExiting(false);
+      setLinkingPlacementId(null);
+    }, 150);
+  }, []);
+
+  // Click-through: while the bound modifier is held, feedback mode stops
+  // intercepting so the page can be clicked normally — no Escape, no round trip
+  // through the toolbar. Window blur clears it, because a modifier released
+  // while another window has focus never sends us its keyup.
+  const clickThroughKey = settings.clickThroughKey;
+  useEffect(() => {
+    if (!isActive || !clickThroughKey || isDesignMode || isDrawMode) {
+      setClickThroughHeld(false);
+      return;
+    }
+
+    const sync = (e: KeyboardEvent) => setClickThroughHeld(isHoldKeyDown(e, clickThroughKey));
+    const clear = () => setClickThroughHeld(false);
+
+    window.addEventListener("keydown", sync);
+    window.addEventListener("keyup", sync);
+    window.addEventListener("blur", clear);
+    document.addEventListener("visibilitychange", clear);
+    return () => {
+      window.removeEventListener("keydown", sync);
+      window.removeEventListener("keyup", sync);
+      window.removeEventListener("blur", clear);
+      document.removeEventListener("visibilitychange", clear);
+      setClickThroughHeld(false);
+    };
+  }, [isActive, clickThroughKey, isDesignMode, isDrawMode]);
+
+  // Drop the hover highlight the moment click-through takes over
+  useEffect(() => {
+    if (clickThroughHeld) setHoverInfo(null);
+  }, [clickThroughHeld]);
+
   // Handle mouse move
   useEffect(() => {
-    if (!isActive || pendingAnnotation || isDrawMode || isDesignMode) return;
+    if (!isActive || pendingAnnotation || isDrawMode || isDesignMode || clickThroughHeld) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       // Use composedPath to get actual target inside shadow DOM
@@ -1880,7 +2054,7 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
 
     document.addEventListener("mousemove", handleMouseMove);
     return () => document.removeEventListener("mousemove", handleMouseMove);
-  }, [isActive, pendingAnnotation, isDrawMode, isDesignMode, effectiveReactMode, drawStrokes]);
+  }, [isActive, pendingAnnotation, isDrawMode, isDesignMode, clickThroughHeld, effectiveReactMode, drawStrokes]);
 
   // Start editing an annotation (right-click or click on drawing stroke)
   const startEditAnnotation = useCallback((annotation: Annotation) => {
@@ -1933,9 +2107,12 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
 
   // Handle click
   useEffect(() => {
-    if (!isActive || isDrawMode || isDesignMode) return;
+    if (!isActive || isDrawMode || isDesignMode || clickThroughHeld) return;
 
     const handleClick = (e: MouseEvent) => {
+      // The modifier can go down between this listener binding and the click
+      // landing, so check the event itself as well as the state.
+      if (clickThroughKey && isHoldKeyDown(e, clickThroughKey)) return;
       if (justFinishedDragRef.current) {
         justFinishedDragRef.current = false;
         return;
@@ -2078,6 +2255,8 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     isActive,
     isDrawMode,
     isDesignMode,
+    clickThroughHeld,
+    clickThroughKey,
     pendingAnnotation,
     editingAnnotation,
     settings.blockInteractions,
@@ -3114,6 +3293,10 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
       }
     }
 
+    // One environment header per copy — browser, window size and how the
+    // viewport got that size, so every coordinate below has a frame.
+    output = withEnvironment(output, settings.outputDetail);
+
     if (copyToClipboard) {
       try {
         await navigator.clipboard.writeText(output);
@@ -3183,6 +3366,8 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
         output += "\n" + rearrangeOutput;
       }
     }
+
+    output = withEnvironment(output, settings.outputDetail);
 
     // Fire onSubmit callback
     if (onSubmit) {
@@ -3420,8 +3605,9 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
         return;
       }
 
-      // Skip other shortcuts if typing or modifier keys are held
-      if (isTyping || e.metaKey || e.ctrlKey) return;
+      // Skip other shortcuts if typing, modifiers are held, or the user is
+      // holding the click-through key to work the page
+      if (isTyping || e.metaKey || e.ctrlKey || clickThroughHeld) return;
 
       // "P" to toggle pause/freeze
       if (e.key === "p" || e.key === "P") {
@@ -3495,6 +3681,7 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     isActive,
     isDrawMode,
     isDesignMode,
+    clickThroughHeld,
     activeDesignComponent,
     designPlacements,
     rearrangeState,
@@ -4070,6 +4257,28 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
       )}
 
       {/* Layout mode overlay — passthrough when no component selected */}
+      {/* Label for the link that was just picked */}
+      {pendingLink && (() => {
+        const left = Math.max(160, Math.min(window.innerWidth - 160, pendingLink.clientX));
+        const top = Math.min(window.innerHeight - 220, Math.max(16, pendingLink.clientY + 12));
+        return (
+          <AnnotationPopupCSS
+            element={`Link to ${pendingLink.target.elementName}`}
+            placeholder="Nav item label, e.g. Pricing"
+            // Prefilled so the link can be committed as-is — the label is a
+            // nicety, and an empty textarea disables the submit button.
+            initialValue={pendingLink.target.elementName}
+            submitLabel="Link"
+            onSubmit={commitLink}
+            onCancel={cancelLink}
+            isExiting={pendingLinkExiting}
+            lightMode={!isDarkMode}
+            accentColor={blankCanvas ? "#f97316" : undefined}
+            style={{ left, top }}
+          />
+        );
+      })()}
+
       {(isDesignMode || designOverlayExiting) && (
         <DesignMode
           placements={designPlacements}
@@ -4084,6 +4293,11 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
           deselectSignal={designDeselectSignal}
           clearSignal={designClearSignal}
           wireframe={blankCanvas}
+          linkingId={linkingPlacementId}
+          onRequestLink={(id) => {
+            setActiveDesignComponent(null);
+            setLinkingPlacementId((prev) => (prev === id ? null : id));
+          }}
           onSelectionChange={(ids, isShift) => {
             designSelectedIdsRef.current = ids;
             if (!isShift) {

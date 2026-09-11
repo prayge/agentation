@@ -17,11 +17,33 @@ export const OUTPUT_TO_REACT_MODE: Record<
 export const OUTPUT_DETAIL_OPTIONS: {
   value: OutputDetailLevel;
   label: string;
+  /** What this level actually puts in the copied markdown. */
+  description: string;
 }[] = [
-  { value: "compact", label: "Compact" },
-  { value: "standard", label: "Standard" },
-  { value: "detailed", label: "Detailed" },
-  { value: "forensic", label: "Forensic" },
+  {
+    value: "compact",
+    label: "Compact",
+    description:
+      "One line per note — element, source file, your comment. No positions, no styles, no React names. Good for a quick punch list.",
+  },
+  {
+    value: "standard",
+    label: "Standard",
+    description:
+      "Each note with its DOM path, source file and React component name. The default: enough for an agent to find the element and change it.",
+  },
+  {
+    value: "detailed",
+    label: "Detailed",
+    description:
+      "Standard plus CSS classes, pixel position and size, and the text around the element. Reach for this when spacing or layout is the problem.",
+  },
+  {
+    value: "forensic",
+    label: "Forensic",
+    description:
+      "Everything: full DOM path, computed styles, accessibility info, neighbouring elements, plus URL, user agent and timestamp. Largest output, slowest to read.",
+  },
 ];
 
 export function generateOutput(
@@ -31,26 +53,8 @@ export function generateOutput(
 ): string {
   if (annotations.length === 0) return "";
 
-  const viewport =
-    typeof window !== "undefined"
-      ? `${window.innerWidth}×${window.innerHeight}`
-      : "unknown";
-
   let output = `## Page Feedback: ${pathname}\n`;
-
-  if (detailLevel === "forensic") {
-    output += `\n**Environment:**\n`;
-    output += `- Viewport: ${viewport}\n`;
-    if (typeof window !== "undefined") {
-      output += `- URL: ${window.location.href}\n`;
-      output += `- User Agent: ${navigator.userAgent}\n`;
-      output += `- Timestamp: ${new Date().toISOString()}\n`;
-      output += `- Device Pixel Ratio: ${window.devicePixelRatio}\n`;
-    }
-    output += `\n---\n`;
-  } else if (detailLevel !== "compact") {
-    output += `**Viewport:** ${viewport}\n`;
-  }
+  if (detailLevel === "forensic") output += `\n---\n`;
   output += "\n";
 
   annotations.forEach((a, i) => {
