@@ -265,6 +265,12 @@ declare const IconChevronLeft: ({ size }: {
 declare const IconChevronRight: ({ size }: {
     size?: number;
 }) => react_jsx_runtime.JSX.Element;
+declare const IconLink: ({ size }: {
+    size?: number;
+}) => react_jsx_runtime.JSX.Element;
+declare const IconTag: ({ size }: {
+    size?: number;
+}) => react_jsx_runtime.JSX.Element;
 declare const AnimatedBunny: ({ size, color, }: {
     size?: number;
     color?: string;
@@ -314,4 +320,4 @@ declare function getStorageKey(pathname: string): string;
 declare function loadAnnotations<T = Annotation>(pathname: string): T[];
 declare function saveAnnotations<T = Annotation>(pathname: string, annotations: T[]): void;
 
-export { PageFeedbackToolbarCSS as Agentation, type AgentationProps, AnimatedBunny, type Annotation, AnnotationPopupCSS, type AnnotationPopupCSSHandle, type AnnotationPopupCSSProps, type DemoAnnotation, IconChatEllipsis, IconCheck, IconCheckSmall, IconCheckSmallAnimated, IconCheckmark, IconCheckmarkCircle, IconCheckmarkLarge, IconChevronLeft, IconChevronRight, IconClose, IconCopyAlt, IconCopyAnimated, IconEdit, IconEye, IconEyeAlt, IconEyeAnimated, IconEyeClosed, IconEyeMinus, IconGear, IconHelp, IconLayout, IconListSparkle, IconMoon, IconPause, IconPauseAlt, IconPausePlayAnimated, IconPlayAlt, IconPlus, IconSendAnimated, IconSendArrow, IconSun, IconTrash, IconTrashAlt, IconXmark, IconXmarkLarge, PageFeedbackToolbarCSS, closestCrossingShadow, getElementClasses, getElementPath, getNearbyText, getShadowHost, getStorageKey, identifyAnimationElement, identifyElement, isInShadowDOM, loadAnnotations, saveAnnotations };
+export { PageFeedbackToolbarCSS as Agentation, type AgentationProps, AnimatedBunny, type Annotation, AnnotationPopupCSS, type AnnotationPopupCSSHandle, type AnnotationPopupCSSProps, type DemoAnnotation, IconChatEllipsis, IconCheck, IconCheckSmall, IconCheckSmallAnimated, IconCheckmark, IconCheckmarkCircle, IconCheckmarkLarge, IconChevronLeft, IconChevronRight, IconClose, IconCopyAlt, IconCopyAnimated, IconEdit, IconEye, IconEyeAlt, IconEyeAnimated, IconEyeClosed, IconEyeMinus, IconGear, IconHelp, IconLayout, IconLink, IconListSparkle, IconMoon, IconPause, IconPauseAlt, IconPausePlayAnimated, IconPlayAlt, IconPlus, IconSendAnimated, IconSendArrow, IconSun, IconTag, IconTrash, IconTrashAlt, IconXmark, IconXmarkLarge, PageFeedbackToolbarCSS, closestCrossingShadow, getElementClasses, getElementPath, getNearbyText, getShadowHost, getStorageKey, identifyAnimationElement, identifyElement, isInShadowDOM, loadAnnotations, saveAnnotations };
