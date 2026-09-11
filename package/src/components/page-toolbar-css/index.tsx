@@ -474,6 +474,9 @@ export function PageFeedbackToolbarCSS({
   const pickTargetRef = useRef<HTMLElement | null>(null);
   // Held modifier that suspends feedback mode so the page can be used normally.
   const [clickThroughHeld, setClickThroughHeld] = useState(false);
+  // True only while a clean click is being re-sent to a link during click-through,
+  // so the capture listener does not treat its own click as a page click.
+  const redispatchingClickRef = useRef(false);
   const [rearrangeState, setRearrangeState] = useState<RearrangeState | null>(null);
   const rearrangeLoaded = useRef(false);
   // Stash explore/wireframe state for full isolation between modes
@@ -1996,7 +1999,13 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
       return;
     }
 
-    const sync = (e: KeyboardEvent) => setClickThroughHeld(isHoldKeyDown(e, clickThroughKey));
+    const sync = (e: KeyboardEvent) => {
+      // The bare modifier's keydown is ours. Without preventDefault, Chrome on
+      // Windows and Linux focuses its menu bar when Alt is released on its own,
+      // and every shortcut after that goes to the browser instead of the page.
+      if (e.type === "keydown" && e.key === clickThroughKey) e.preventDefault();
+      setClickThroughHeld(isHoldKeyDown(e, clickThroughKey));
+    };
     const clear = () => setClickThroughHeld(false);
 
     window.addEventListener("keydown", sync);
@@ -2107,12 +2116,40 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
 
   // Handle click
   useEffect(() => {
-    if (!isActive || isDrawMode || isDesignMode || clickThroughHeld) return;
+    if (!isActive || isDrawMode || isDesignMode) return;
 
     const handleClick = (e: MouseEvent) => {
-      // The modifier can go down between this listener binding and the click
-      // landing, so check the event itself as well as the state.
-      if (clickThroughKey && isHoldKeyDown(e, clickThroughKey)) return;
+      if (redispatchingClickRef.current) return;
+
+      // Click-through: the page gets the click. On a link, though, a modified
+      // click is not a plain click to the browser - Alt downloads it, Ctrl opens
+      // a tab, Shift a window - so the original is cancelled and a clean one is
+      // sent in its place. Buttons and inputs take the modified click as-is.
+      if (clickThroughKey && isHoldKeyDown(e, clickThroughKey)) {
+        const clickTarget = (e.composedPath()[0] || e.target) as HTMLElement;
+        const link = closestCrossingShadow(clickTarget, "a[href]");
+        if (link) {
+          e.preventDefault();
+          e.stopPropagation();
+          redispatchingClickRef.current = true;
+          try {
+            link.dispatchEvent(
+              new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                view: window,
+                clientX: e.clientX,
+                clientY: e.clientY,
+                button: 0,
+              }),
+            );
+          } finally {
+            redispatchingClickRef.current = false;
+          }
+        }
+        return;
+      }
       if (justFinishedDragRef.current) {
         justFinishedDragRef.current = false;
         return;
@@ -2255,7 +2292,6 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
     isActive,
     isDrawMode,
     isDesignMode,
-    clickThroughHeld,
     clickThroughKey,
     pendingAnnotation,
     editingAnnotation,
@@ -2366,13 +2402,17 @@ const [settings, setSettings] = useState<ToolbarSettings>(() => {
         return;
       }
 
+      // Click-through: no drag-select, and no preventDefault, so the press
+      // focuses and selects exactly as it would without the toolbar.
+      if (clickThroughKey && isHoldKeyDown(e, clickThroughKey)) return;
+
       e.preventDefault(); // Prevent text selection during drag area annotation
       mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
     };
 
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [isActive, pendingAnnotation, isDrawMode, isDesignMode]);
+  }, [isActive, pendingAnnotation, isDrawMode, isDesignMode, clickThroughKey]);
 
   // Multi-select drag - mousemove (fully optimized with direct DOM updates)
   useEffect(() => {

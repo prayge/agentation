@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_ACTIVATION_KEY,
+  DEFAULT_CLICK_THROUGH_KEY,
+  formatHoldKey,
   formatKeybind,
+  holdKeyFromEvent,
+  isHoldKeyDown,
   keybindFromEvent,
   matchesKeybind,
   parseKeybind,
@@ -73,5 +77,29 @@ describe("formatKeybind", () => {
     expect(formatKeybind("Mod+Shift+F")).toBe("Ctrl+Shift+F");
     expect(formatKeybind("ScrollLock")).toBe("Scroll Lock");
     expect(formatKeybind("")).toBe("None");
+  });
+});
+
+describe("hold keys (click-through)", () => {
+  it("binds a bare modifier and nothing else", () => {
+    expect(holdKeyFromEvent(event("Alt", { altKey: true }))).toBe("Alt");
+    expect(holdKeyFromEvent(event("Shift", { shiftKey: true }))).toBe("Shift");
+    expect(holdKeyFromEvent(event("k", { altKey: true }))).toBeNull();
+    expect(holdKeyFromEvent(event("Escape"))).toBeNull();
+  });
+
+  it("reads the held state off keyboard and mouse events alike", () => {
+    expect(isHoldKeyDown(event("Alt", { altKey: true }), DEFAULT_CLICK_THROUGH_KEY)).toBe(true);
+    expect(isHoldKeyDown(event("Alt", { altKey: false }), DEFAULT_CLICK_THROUGH_KEY)).toBe(false);
+    const click = { altKey: false, shiftKey: true, ctrlKey: false, metaKey: false };
+    expect(isHoldKeyDown(click, "Shift")).toBe(true);
+    expect(isHoldKeyDown(click, "Alt")).toBe(false);
+    expect(isHoldKeyDown(click, "")).toBe(false);
+  });
+
+  it("labels the bind, and Off when unset", () => {
+    expect(formatHoldKey("Alt")).toBe("Alt");
+    expect(formatHoldKey("Meta")).toBe("Win");
+    expect(formatHoldKey("")).toBe("Off");
   });
 });
